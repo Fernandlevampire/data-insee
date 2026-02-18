@@ -57,7 +57,7 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
     # reformat numerical data
     df["Valeur fonciere"] = df["Valeur fonciere"].str.replace(",", ".").astype(float)
     df["Date mutation"] = pd.to_datetime(df["Date mutation"], format="%d/%m/%Y")
-    df["Année"] = df["Date mutation"].dt.year
+    df["Année"] = df["Date mutation"].astype("datetime64[ns]").dt.year
     df["Code type local"] = df["Code type local"].fillna(0).astype("int32")
     df["Nombre pieces principales"] = df["Nombre pieces principales"].fillna(0).astype("int32")
     df["Surface reelle bati"] = df["Surface reelle bati"].fillna(0)
@@ -92,6 +92,16 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
         ]
     df = df.reindex(columns=col_order)
 
+    return df
+
+def remove_outliers(df:pd.DataFrame, col: str) -> pd.DataFrame:
+    df = df.copy()
+
+    quartiles = df[col].quantile(np.r_[0:1.01:0.25]) 
+    interq = quartiles[0.75] - quartiles[0.25]
+    x_min, x_max = max(100,quartiles[0.25]-1.5*interq), quartiles[0.75]+1.5*interq
+
+    df = df.loc[(df[col] > x_min) & (df[col] < x_max)]
     return df
 
 if __name__ == "__main__":
