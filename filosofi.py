@@ -17,7 +17,8 @@ def request_melodi_filosifi(page:int=1):
     if status:=response.status_code != 200:
         print(f"Request did not go through with page {page}. Error: {status}")
         if status == 429:
-            print("Waiting 1 minute before next request...")
+            # melodi request number is 30 per minute. Wait and start requesting again
+            print("Reached request number limit. Waiting 1 minute before trying again...")
             time.sleep(60)
             print("Proceed")
             response = requests.get(
