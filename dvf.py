@@ -57,7 +57,7 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
     # reformat numerical data
     df["Valeur fonciere"] = df["Valeur fonciere"].str.replace(",", ".").astype(float)
     df["Date mutation"] = pd.to_datetime(df["Date mutation"], format="%d/%m/%Y")
-    df["Année"] = df["Date mutation"].astype("datetime64[ns]").dt.year
+    df["Annee"] = df["Date mutation"].astype("datetime64[ns]").dt.year
     df["Code type local"] = df["Code type local"].fillna(0).astype("int32")
     df["Nombre pieces principales"] = df["Nombre pieces principales"].fillna(0).astype("int32")
     df["Surface reelle bati"] = df["Surface reelle bati"].fillna(0)
@@ -68,7 +68,7 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
 
     col_order = [
         "Date mutation",
-        "Année",
+        "Annee",
         "Nature mutation",
         "Adresse",
         "Code voie",
