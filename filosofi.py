@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+import time
 
 """
 filosifi is an INSEE dataset that provides information on socio-economic characteristics of french territories at different scales
@@ -13,8 +14,18 @@ def request_melodi_filosifi(page:int=1):
             f"?page={page}"
         )
 
-    if response.status_code != 200:
-        print("Request did not go through. Error: ", response.status_code)
+    if status:=response.status_code != 200:
+        print(f"Request did not go through with page {page}. Error: {status}")
+        if status == 429:
+            print("Waiting 1 minute before next request...")
+            time.sleep(60)
+            print("Proceed")
+            response = requests.get(
+                "https://api.insee.fr/melodi/data/DS_FILOSOFI_CC" \
+                f"?page={page}"
+            )
+            print(f"Response status: {response.status_code}")
+        
     return response.json()
 
 def get_melodi_filosifi_data() -> pd.DataFrame:
