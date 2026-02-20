@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from scipy import optimize
+from typing import Callable
 
 import utils
 
@@ -26,16 +26,15 @@ def normal_density(df: pd.DataFrame, col:str):
     # basic hist displays data density
     n_bins = min(int(len(data)/10), 50)
     y, *_ = ax.hist(data, bins=n_bins, weights=np.ones_like(data)/len(data), edgecolor="white", alpha=0.7, facecolor="#959595")
-
-    # asymetric gaussian distribution
-    def gauss(x, a, x0, sigma):
-        return a*np.exp(-(x-x0)**2 / (2*sigma**2))
     
     x = np.linspace(data.min(),data.max(), n_bins)
-    (a, x0, sigma), _ = optimize.curve_fit(gauss, x, y, p0=[250, 4800, 1000])
-    result = utils.model_estimate(y, gauss, x,(a, x0, sigma))
-
-    ax.plot(x, np.vectorize(lambda n: gauss(n, a, x0, sigma))(x), color="white", linestyle=":", linewidth=2)
+    
+    popt = utils.gauss_opt_params(data=data, bins=n_bins)
+    a, x0, sigma = popt["a"], popt["x0"], popt["sigma"]
+    gaussian = utils.gauss
+    result = utils.model_estimate(y, gaussian, x, (a, x0, sigma))
+    
+    ax.plot(x, np.vectorize(lambda n: gaussian(n, a, x0, sigma))(x), color="white", linestyle=":", linewidth=2)
     ax.scatter(x0, a, facecolor="white")
 
     # text box and annotations
@@ -60,13 +59,20 @@ def normal_density(df: pd.DataFrame, col:str):
     plt.tight_layout()
     plt.show()
 
-def bubble_scatter(df: pd.DataFrame, col_y:str, col_x:str):
+def bubble_scatter(df: pd.DataFrame, col_y:str, col_x:str, method:str="mean"):
     # aggregate the y values by x parameter. We need mean and count agglomerates to visualize the evolution
-    df_agg = df[[col_y,col_x]].groupby(by=col_x).agg({col_y:["mean","count"]})
+    # we can choose method between mean, median and mode
+    try:
+        method_func = {"mode": lambda data: utils.gauss_mode(data, 50),
+         "median": lambda data: data.median()}[method]
+        df_agg = df[[col_y,col_x]].groupby(by=col_x).agg({col_y:[method_func,"count"]})
+    except KeyError:
+        df_agg = df[[col_y,col_x]].groupby(by=col_x).agg({col_y:["mean","count"]})
+    
 
     # rename columns for better readability
-    col_y_mean, col_y_count = f"{col_y}_mean", f"{col_y}_count"
-    df_agg.columns = [col_y_mean, col_y_count]
+    col_y_agg, col_y_count = f"{col_y}_{method}", f"{col_y}_count"
+    df_agg.columns = [col_y_agg, col_y_count]
 
     # set basic geometric parameters
     nb_x, nb_y = df_agg.shape[0], df_agg[col_y_count].sum()
@@ -75,13 +81,13 @@ def bubble_scatter(df: pd.DataFrame, col_y:str, col_x:str):
     
     # set display parameters
     x_range = np.arange(nb_x)    
-    min_y, max_y = int(df_agg[col_y_mean].min()/1000), int(df_agg[col_y_mean].max()/1000)
+    min_y, max_y = int(df_agg[col_y_agg].min()/1000), int(df_agg[col_y_agg].max()/1000)
     y_range = 1000*np.r_[min_y-0.5:max_y+1.5:0.25]
     count_weight = nb_x*(max_y-min_y)*1000/nb_y
 
     # display a bubble scatter plot with the center of the bubbles
-    ax.scatter(x=x_range, y=df_agg[col_y_mean], s=df_agg[col_y_count]*count_weight, facecolors="pink", edgecolors="r")
-    ax.scatter(x=x_range, y=df_agg[col_y_mean], facecolors="r", marker="+")
+    ax.scatter(x=x_range, y=df_agg[col_y_agg], s=df_agg[col_y_count]*count_weight, facecolors="pink", edgecolors="r")
+    ax.scatter(x=x_range, y=df_agg[col_y_agg], facecolors="r", marker="+")
     
     # show vertical grid lines but hide tick labels
     ax.tick_params(axis='x', which='both', labelbottom=False)
@@ -108,7 +114,7 @@ def bubble_scatter(df: pd.DataFrame, col_y:str, col_x:str):
 
     # create a nicely formatted table below the plot
     df_format = df_agg.copy()
-    df_format[col_y_mean] = df_format[col_y_mean].apply(utils.reformat_number)
+    df_format[col_y_agg] = df_format[col_y_agg].apply(utils.reformat_number)
     df_format[col_y_count] = df_format[col_y_count].apply(utils.reformat_number)
     df_format = df_format.T
     
