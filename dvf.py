@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from utils import print_memory, apply_masks
+import utils
 
 """
 DVF is a french public dataset that provides information on land sales in
@@ -14,9 +14,10 @@ input data come as .txt files formatted as csv with | separator
 input format is based on current version of dvf database as of year 2026
 """
 
-def dvf_extract(file_path:str, mask_funks:list=[]):
+def dvf_extract(file_path:str, mask_funks:list=[], check_memory:bool=False):
     print(file_path)
-    print_memory(message="Memory before reading")
+    if check_memory:
+        utils.check_ram(message="Memory before reading")
     # drop useless columns : 0->7 are empty, "1er lot">"5eme lot" are unexploitable
     cols_base, cols_ex = np.r_[8:40, 42], np.r_[24:33:2, 37]
     cols = np.setdiff1d(cols_base, cols_ex)
@@ -26,11 +27,11 @@ def dvf_extract(file_path:str, mask_funks:list=[]):
     
     # apply masks to each chunk
     if mask_funks:
-        chunks = [apply_masks(chunk, *mask_funks) for chunk in chunks]
+        chunks = [utils.apply_masks(chunk, *mask_funks) for chunk in chunks]
     
     return chunks
 
-def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
+def dvf_reformat(df:pd.DataFrame, min_price:float=0, max_price:float=0)->pd.DataFrame:
     df = df.copy()
 
     # sum surface_carrez of all lots and drop detailed data 
@@ -45,6 +46,9 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
     for col in address_cols:
         df[col] = df[col].fillna("")
     df["Code postal"] = df["Code postal"].fillna("")
+    df["Code departement"] = df["Code departement"].fillna("").apply(lambda x: utils.normalize_code(x, 2))
+    df["Code commune"] = df["Code commune"].fillna("").apply(lambda x: utils.normalize_code(x, 3))
+    df["Code INSEE"] = df["Code departement"] + df["Code commune"]
     df["Adresse"] = (
         df["No voie"] + df["B/T/Q"] + np.where(df["No voie"] + df["B/T/Q"] != "", " ", "")
         + df["Type de voie"] + np.where(df["Type de voie"] != "", " ", "")
@@ -65,7 +69,11 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
     # compute price per sq meter for each sale    
     df["Prix au m2"] = np.nan
     df.loc[df["Surface reelle bati"]>0, "Prix au m2"] = df["Valeur fonciere"]/df["Surface reelle bati"]
-
+    if min_price:
+        df = df.loc[df["Prix au m2"]>min_price]
+    if max_price:
+        df = df.loc[df["Prix au m2"]<max_price]
+    
     col_order = [
         "Date mutation",
         "Annee",
@@ -76,6 +84,7 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
         "Commune",
         "Code commune",
         "Code departement",
+        "Code INSEE",
         "Prefixe de section",
         "Section",
         "No plan",
@@ -92,16 +101,6 @@ def dvf_reformat(df:pd.DataFrame, local_type:int=0)->pd.DataFrame:
         ]
     df = df.reindex(columns=col_order)
 
-    return df
-
-def remove_outliers(df:pd.DataFrame, col: str) -> pd.DataFrame:
-    df = df.copy()
-
-    quartiles = df[col].quantile(np.r_[0:1.01:0.25]) 
-    interq = quartiles[0.75] - quartiles[0.25]
-    x_min, x_max = max(100,quartiles[0.25]-1.5*interq), quartiles[0.75]+1.5*interq
-
-    df = df.loc[(df[col] > x_min) & (df[col] < x_max)]
     return df
 
 if __name__ == "__main__":

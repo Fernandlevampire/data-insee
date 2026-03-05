@@ -6,10 +6,10 @@ from typing import Callable
 
 import utils
 
-def normal_density(df: pd.DataFrame, col:str):
+def normal_density(df: pd.DataFrame, col:str, bins:int=50):
     """
-    displays the normal nature of a distribution of data
-    among key parameters, it highlights :
+    Displays the normal nature of a distribution of data
+    Among key parameters, it highlights :
     - the size of the dataset
     - the value for which the gaussian approximation reaches a maximum (value with highest frequency)
     - the coefficient of determination R²
@@ -22,53 +22,59 @@ def normal_density(df: pd.DataFrame, col:str):
     # set axes format        
     ax.set_facecolor("#2C2C2C")
     ax.grid(True, linestyle="--", alpha=0.7, color="#FFFFFF")
+    n_bins = min(utils.estimate_bins(data), bins)
 
     # basic hist displays data density
-    n_bins = min(int(len(data)/10), 50)
-    y, *_ = ax.hist(data, bins=n_bins, weights=np.ones_like(data)/len(data), edgecolor="white", alpha=0.7, facecolor="#959595")
+    ax.hist(data, bins=n_bins, weights=np.ones_like(data)/len(data), edgecolor="white", alpha=0.7, facecolor="#959595")
     
-    x = np.linspace(data.min(),data.max(), n_bins)
-    
-    popt = utils.gauss_opt_params(data=data, bins=n_bins)
-    a, x0, sigma = popt["a"], popt["x0"], popt["sigma"]
-    gaussian = utils.gauss
-    result = utils.model_estimate(y, gaussian, x, (a, x0, sigma))
-    
-    ax.plot(x, np.vectorize(lambda n: gaussian(n, a, x0, sigma))(x), color="white", linestyle=":", linewidth=2)
-    ax.scatter(x0, a, facecolor="white")
+    # try and approximate the data with an asymetric gaussian curve
+    try:
+        result = utils.gauss_opt_params(data=data, bins=n_bins)
+        a, x0, sigma = result["a"], result["x0"], result["sigma"]
+        gaussian = utils.gauss
+        
+        x = np.linspace(data.min(), data.max(), n_bins)
+        ax.plot(x, np.vectorize(lambda n: gaussian(n, a, x0, sigma))(x), color="white", linestyle=":", linewidth=2)
+        ax.scatter(x0, a, facecolor="white")
 
-    # text box and annotations
-    box_text = "\n".join([
-        f"# ventes : {utils.reformat_number(data.count())}"
-        , f"Prix type : {utils.reformat_number(x0)} €/m²"
-        , f"R² modèle : {utils.reformat_number(result['r_squared'])}"
-    ])
+        # text box and annotations
+        box_text = "\n".join([
+            f"# ventes : {utils.reformat_number(data.count())}"
+            , f"Prix type : {utils.reformat_number(x0)} €/m²"
+            , f"R² modèle : {utils.reformat_number(result['r_squared'])}"
+        ])
 
-    props = dict(boxstyle="round", facecolor="white", pad=0.5)
+        props = dict(boxstyle="round", facecolor="white", pad=0.5)
 
-    # place a text box up right
-    ax.text(0.70, 0.96, box_text, fontsize=10,
-            verticalalignment="top",
-            transform=ax.transAxes, bbox=props)
+        # place a text box up right
+        ax.text(0.70, 0.96, box_text, fontsize=10,
+                verticalalignment="top",
+                transform=ax.transAxes, bbox=props)
+        
+        # annotate max frequency point
+        annotation_text = f"{utils.reformat_number(x0)} €/m²"
+        kw = dict(arrowprops=dict(arrowstyle="-", ec="w", connectionstyle="angle,angleA=-0,angleB=65"), bbox=dict(fc="none", ec="k", lw=.0), zorder=0, va="center")
+        ax.annotate(annotation_text, xy=(x0, a), xytext=(x0*1.1, a*1.06), color="white", **kw)
     
-    # annotate max frequency point
-    annotation_text = f"{utils.reformat_number(x0)} €/m²"
-    kw = dict(arrowprops=dict(arrowstyle="-", ec="w", connectionstyle="angle,angleA=-0,angleB=65"), bbox=dict(fc="none", ec="k", lw=.0), zorder=0, va="center")
-    ax.annotate(annotation_text, xy=(x0, a), xytext=(x0*1.1, a*1.06), color="white", **kw)
+    except ValueError:
+        pass
 
     plt.tight_layout()
     plt.show()
 
 def bubble_scatter(df: pd.DataFrame, col_y:str, col_x:str, method:str="mean"):
-    # aggregate the y values by x parameter. We need mean and count agglomerates to visualize the evolution
-    # we can choose method between mean, median and mode
+    """ 
+    Create a bubble plot based on an aggregation of data :
+    Aggregate the col_y values by col_x parameter
+    Bubble diameter will be based on value count
+    Aggregation method can be chosen between mean (default), median and mode
+    """
     try:
         method_func = {"mode": lambda data: utils.gauss_mode(data, 50),
          "median": lambda data: data.median()}[method]
         df_agg = df[[col_y,col_x]].groupby(by=col_x).agg({col_y:[method_func,"count"]})
     except KeyError:
         df_agg = df[[col_y,col_x]].groupby(by=col_x).agg({col_y:["mean","count"]})
-    
 
     # rename columns for better readability
     col_y_agg, col_y_count = f"{col_y}_{method}", f"{col_y}_count"
@@ -81,8 +87,8 @@ def bubble_scatter(df: pd.DataFrame, col_y:str, col_x:str, method:str="mean"):
     
     # set display parameters
     x_range = np.arange(nb_x)    
-    min_y, max_y = int(df_agg[col_y_agg].min()/1000), int(df_agg[col_y_agg].max()/1000)
-    y_range = 1000*np.r_[min_y-0.5:max_y+1.5:0.25]
+    min_y, max_y = df_agg[col_y_agg].min()/1000, df_agg[col_y_agg].max()/1000
+    y_range = 1000*np.r_[int(min_y)-0.5:int(max_y)+1.5:0.25]
     count_weight = nb_x*(max_y-min_y)*1000/nb_y
 
     # display a bubble scatter plot with the center of the bubbles
