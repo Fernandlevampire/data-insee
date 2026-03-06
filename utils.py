@@ -25,10 +25,6 @@ def reformat_number(number:float|np.float64|int|np.int64)->str:
     print("neither int nor float", type(number))
     return str(number)
 
-def normalize_code(code:str|int, nchar:int) -> str:
-    """add zeros left of the code so that reformatted code is n characters long"""
-    return (nchar-len(str(code)))*"0" + str(code)
-
 """dataframes"""
 def apply_masks(df: pd.DataFrame, *mask_funcs) -> pd.DataFrame:
     """
@@ -55,7 +51,8 @@ def outliers_limits(data:pd.Series, min_val:float=float("-inf"), max_val:float=f
 def remove_outliers_df(df:pd.DataFrame, col: str, min_val:float=float("-inf"), max_val:float=float("inf"), coeff_IQR:float=1.5) -> pd.DataFrame:
     """
     Remove mild outliers according to Tukey method
-    Keep values in range: [Q1-coeff*IQR:Q3+coeff*IQR] (IQR = interquartile range)
+    Keep values in range: [Q1-coeff*IQR:Q3+coeff*IQR] 
+    where IQR = interquartile range
     """ 
     df = df.copy()
 

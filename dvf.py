@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 
 import utils
 
@@ -14,6 +15,8 @@ input data come as .txt files formatted as csv with | separator
 input format is based on current version of dvf database as of year 2026
 """
 
+DATA_FOLDER = "data_save/"
+
 def dvf_extract(file_path:str, mask_funks:list=[], check_memory:bool=False):
     print(file_path)
     if check_memory:
@@ -22,7 +25,7 @@ def dvf_extract(file_path:str, mask_funks:list=[], check_memory:bool=False):
     cols_base, cols_ex = np.r_[8:40, 42], np.r_[24:33:2, 37]
     cols = np.setdiff1d(cols_base, cols_ex)
 
-    dtype_dict = {col: str for col in np.r_[11:20, 24:33:2]}
+    dtype_dict = {col: "string" for col in np.r_[11:20, 24:33:2]}
     chunks = pd.read_csv(file_path, sep="|", chunksize=1000000, usecols=cols, dtype=dtype_dict, low_memory=False)
     
     # apply masks to each chunk
@@ -46,9 +49,10 @@ def dvf_reformat(df:pd.DataFrame, min_price:float=0, max_price:float=0)->pd.Data
     for col in address_cols:
         df[col] = df[col].fillna("")
     df["Code postal"] = df["Code postal"].fillna("")
-    df["Code departement"] = df["Code departement"].fillna("").apply(lambda x: utils.normalize_code(x, 2))
-    df["Code commune"] = df["Code commune"].fillna("").apply(lambda x: utils.normalize_code(x, 3))
+    df["Code departement"] = df["Code departement"].fillna("").astype(str).str.zfill(2)
+    df["Code commune"] = df["Code commune"].fillna("").astype(str).str.zfill(3)
     df["Code INSEE"] = df["Code departement"] + df["Code commune"]
+    df["Code INSEE"] = df["Code INSEE"].str.zfill(5)
     df["Adresse"] = (
         df["No voie"] + df["B/T/Q"] + np.where(df["No voie"] + df["B/T/Q"] != "", " ", "")
         + df["Type de voie"] + np.where(df["Type de voie"] != "", " ", "")
