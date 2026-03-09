@@ -1,0 +1,15 @@
+[project]
+name = "data-insee"
+version = "0.1.0"
+description = "French real estate analysis using DVF and macro data from INSEE and Banque de France"
+authors = [{name="Etienne Brugère"}]
+dependencies = [
+    "pandas",
+    "numpy",
+    "requests",
+    "matplotlib",
+    "python-dotenv"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

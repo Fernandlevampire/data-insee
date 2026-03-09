@@ -1,68 +1,49 @@
 import pandas as pd
-import requests
-import time
+
+import utils
 
 """
 filosifi is an INSEE dataset that provides information on socio-economic characteristics of french territories at different scales
 it can be requested through INSEE's API called Melodi
 In this project, we extract and try to improve data readability
 """
-
-def request_melodi_filosifi(page:int=1):
-    response = requests.get(
-            "https://api.insee.fr/melodi/data/DS_FILOSOFI_CC" \
-            f"?page={page}"
-        )
-
-    if (status:=response.status_code) != 200:
-        print(f"Request did not go through with page {page}. Error: {status}")
-        if status == 429:
-            # melodi request number is 30 per minute. Wait and start requesting again
-            print("Reached request number limit. Waiting 1 minute before trying again...")
-            time.sleep(60)
-            print("Proceed")
-            response = requests.get(
-                "https://api.insee.fr/melodi/data/DS_FILOSOFI_CC" \
-                f"?page={page}"
-            )
-            print(f"Response status: {response.status_code}")
-        
-    return response.json()
-
-def get_melodi_filosifi_data() -> pd.DataFrame:
+def extract_filosofi() -> pd.DataFrame:
     data_dict = {}
     page = 0
 
     while True:
         page += 1
-        json_response = request_melodi_filosifi(page)
+        params = {"page": page}
+        json_response = utils.get_json("https://api.insee.fr/melodi/data/DS_FILOSOFI_CC", params=params)
+
         # loop will stop as soon as response does not include data (observations is empty)
         if observations:=json_response.get("observations"):
             for item in observations:
                 geo, measure_id = item["dimensions"]["GEO"], item["dimensions"]["FILOSOFI_MEASURE"]
-                # if value is defined, store it in data_dict
                 try:
+                    # if value is defined, store it in data_dict
                     value = item["measures"]["OBS_VALUE_NIVEAU"]["value"]
-                    # if geo is already a line, complete it
-                    try:
-                        data_dict[geo][measure_id] = value
-                    # else create the line and complete it
-                    except KeyError:
+                    
+                    if geo not in data_dict:
                         year, region_type, code = geo.split("-")
                         data_dict[geo] = {
-                            "Echelle": region_type, 
-                            "Code_INSEE": code, 
-                            "Annee": year,
-                            measure_id: value
+                            "Echelle": region_type,
+                            "Code_INSEE": code,
+                            "Annee": year
                         }
-                # if value is not defined, pass to next observation item
+
+                    data_dict[geo][measure_id] = value
+                
                 except KeyError:
+                    # if value is not defined, pass to next observation item
                     pass
         else:
             break
     
-    # here we only want to keep values on communal scale
-    return pd.DataFrame(data_dict.values())
+
+    filosofi_df = pd.DataFrame(data_dict.values())
+    
+    return reindex_filosofi(filosofi_df)
 
 def reindex_filosofi(df: pd.DataFrame) -> pd.DataFrame:
     columns_order = [
@@ -120,11 +101,20 @@ def reindex_filosofi(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-def main() -> pd.DataFrame:
-    df = reindex_filosofi(get_melodi_filosifi_data())
-    df.to_csv("data_save/filosofi.csv", index=False)
-    return df
+def get_filosofi_df(save_file:str="filosofi.csv", is_save:bool=False) -> pd.DataFrame:
+    filosofi_df = utils.read_or_extract(
+        extract_filosofi,
+        save_file=save_file,
+        is_save=is_save
+    )
+    
+    return filosofi_df
+
+def filter_on_communes(filosofi_df:pd.DataFrame)->pd.DataFrame:
+    fil_communes_df = filosofi_df.loc[(filosofi_df["Echelle"] == "COM")]
+    fil_communes_df = fil_communes_df.drop(columns=["Echelle", "Annee"])
+    return fil_communes_df
 
 if __name__ == "__main__":
-    df = main()
-    df.head()
+    filosofi_df = get_filosofi_df()
+    filosofi_df.head()

@@ -2,8 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from typing import Callable
-
 import utils
 
 def normal_density(df: pd.DataFrame, col:str, bins:int=50):
@@ -54,7 +52,7 @@ def normal_density(df: pd.DataFrame, col:str, bins:int=50):
         # annotate max frequency point
         annotation_text = f"{utils.reformat_number(x0)} €/m²"
         kw = dict(arrowprops=dict(arrowstyle="-", ec="w", connectionstyle="angle,angleA=-0,angleB=65"), bbox=dict(fc="none", ec="k", lw=.0), zorder=0, va="center")
-        ax.annotate(annotation_text, xy=(x0, a), xytext=(x0*1.1, a*1.06), color="white", **kw)
+        ax.annotate(annotation_text, xy=(x0, a), xytext=(x0*1.1, a*1.06), color="white", **kw) # type: ignore
     
     except ValueError:
         pass
@@ -127,7 +125,7 @@ def bubble_scatter(df: pd.DataFrame, col_y:str, col_x:str, method:str="mean"):
     table = ax.table(
         df_format,
         cellLoc="center",
-        bbox=[0, -0.3, 1, 0.2],
+        bbox=[0, -0.3, 1, 0.2], # type: ignore
         fontsize=10
         )
     # make the uppermost row bold for emphasis
